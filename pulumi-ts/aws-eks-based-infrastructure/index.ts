@@ -27,7 +27,7 @@ const customProvider = new aws.Provider("custom-aws", {
 const cfg                   = new pulumi.Config();
 const vpcCidr               = cfg.get("vpcCidr")   ?? "10.0.0.0/16";
 const azCount               = cfg.getNumber("azs") ?? 3;
-// const k8sVersion            = cfg.get("k8sVersion")?? "1.33";
+const k8sVersion            = cfg.get("k8sVersion")?? "1.33";
 // const eksNodeInstanceType   = cfg.get("eksNodeInstanceType")  ?? "t3.medium";
 // const desiredClusterSize    = cfg.getNumber("desiredClusterSize") ?? 1;
 // const minClusterSize        = cfg.getNumber("min") ?? 1;
@@ -38,8 +38,10 @@ const azCount               = cfg.getNumber("azs") ?? 3;
  * VPC – explicit, self‑documenting configuration
  * ----------------------------------------------------------------------------------------
  * We keep relevant settings visible so that defaults are never a surprise.
+ * If you want to customize IG, NAT and route tables names you cannot do it with this awsx.Vpc
+ * class, you have to use aws.ec2.Vpc class instead.
  */
-const vpc = new awsx.ec2.Vpc("vpc", {
+const vpc = new awsx.ec2.Vpc("core-vpc", {
     /* ─── General ──────────────────────────────────────────────────────────── */
     cidrBlock: vpcCidr,                 // Primary IPv4 range for the VPC
     enableDnsSupport: true,             // Enable Amazon‑provided DNS resolution
@@ -53,12 +55,12 @@ const vpc = new awsx.ec2.Vpc("vpc", {
     subnetSpecs: [
         {
             type: "Public",             // Internet‑routable
-            name: "public",
+            name: "pub-subnet",
             cidrMask: 24,               // /24 ⇒ 256 IPs per subnet
         },
         {
             type: "Private",            // Egress via NAT only
-            name: "private",
+            name: "priv-subnet",
             cidrMask: 24,               // /24 ⇒ 256 IPs per subnet
         },
     ],
@@ -84,4 +86,28 @@ const kmsAlias = new aws.kms.Alias("eks-secrets-kms-alias", {
  * EKS Cluster
  * ----------------------------------------------------------------------------------------
  */
-//TODO
+const eksCluster = new eks.Cluster("core-eks-cluster", {
+    vpcId            : vpc.vpcId,
+    privateSubnetIds : vpc.privateSubnetIds,   // for worker nodes
+
+    // Kubernetes version (optional): Pulumi picks latest stable if not set
+    version: k8sVersion,
+
+    // Network exposure for cluster endpoint
+    endpointPrivateAccess: false,
+    endpointPublicAccess : true,
+
+    encryptionConfigKeyArn: kmsKey.arn, // KMS key for encrypting secrets
+
+    skipDefaultNodeGroup: true,             // we’ll add our own node groups
+    kubeProxyAddonOptions: {
+        version: "v1.33.0-eksbuild.2",
+    },
+    vpcCniOptions: {
+        addonVersion: "v1.19.5-eksbuild.3",
+    },
+    createOidcProvider: true,
+    enabledClusterLogTypes: []
+}, { provider: customProvider });
+
+export const kubeconfig = eksCluster.kubeconfig;

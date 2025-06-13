@@ -29,3 +29,19 @@ Follow the wizard...
 pulumi config set aws:profile iac-comparator-pulumi-dev
 to check > pulumi config
 
+To docs - HOW TO RUN
+```bash
+cd pulumi-ts/aws-eks-based-infrastructure
+
+pulumi stack init dev
+
+pulumi config set aws:profile iac-comparator-pulumi-dev
+
+pulumi stack select dev
+
+pulumi up
+
+```
+
+
+
