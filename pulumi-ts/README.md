@@ -40,8 +40,9 @@ pulumi config set aws:profile iac-comparator-pulumi-dev
 pulumi stack select dev
 
 pulumi up
-
 ```
+
+TODO -> about Pulumi Cloud and how Pulumi handles state
 
 
 

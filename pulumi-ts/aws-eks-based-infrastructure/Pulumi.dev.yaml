@@ -1,5 +1,32 @@
 config:
   aws:profile: iac-comparator-pulumi-dev
+
+  # networking
   vpcCidr: 10.0.0.0/16
   azs: 3
+
+  # EKS cluster
   k8sVersion: "1.33"
+  kubeproxyAddonVersion: "v1.33.0-eksbuild.2"
+  vpcCniAddonVersion: "v1.19.5-eksbuild.3"
+
+  # EKS managed node group
+  eksGeneralManagedNg: true
+  eksGeneralManagedNgName: "general"
+  eksGeneralManagedNgDiskSize: 50
+  eksGeneralManagedNgAmiType: "AL2023_x86_64_STANDARD"
+  eksGeneralManagedNgCapacityType: "ON_DEMAND"
+  # eksGeneralManagedNgTaints:
+  #   - key: "dedicated"
+  #     value: "general"
+  #     effect: "NO_SCHEDULE"
+  eksGeneralManagedNgLabels:
+    lifecycle: "on-demand"
+    workload: "general"
+  eksGeneralManagedNgInstanceType: "t3.medium"
+  eksGeneralManagedNgDesiredSize: 1
+  eksGeneralManagedNgMinSize: 1
+  eksGeneralManagedNgMaxSize: 5
+
+  # EKS additional addons
+  corednsAddonVersion: "v1.12.1-eksbuild.2"

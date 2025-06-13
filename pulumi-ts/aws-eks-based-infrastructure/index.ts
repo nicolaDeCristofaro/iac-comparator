@@ -28,10 +28,23 @@ const cfg                   = new pulumi.Config();
 const vpcCidr               = cfg.get("vpcCidr")   ?? "10.0.0.0/16";
 const azCount               = cfg.getNumber("azs") ?? 3;
 const k8sVersion            = cfg.get("k8sVersion")?? "1.33";
-// const eksNodeInstanceType   = cfg.get("eksNodeInstanceType")  ?? "t3.medium";
-// const desiredClusterSize    = cfg.getNumber("desiredClusterSize") ?? 1;
-// const minClusterSize        = cfg.getNumber("min") ?? 1;
-// const maxClusterSize        = cfg.getNumber("max") ?? 5;
+const kubeproxyAddonVersion = cfg.get("kubeProxyAddonVersion") ?? "v1.33.0-eksbuild.2";
+const vpcCniAddonVersion   = cfg.get("vpcCniAddonVersion") ?? "v1.19.5-eksbuild.3";
+const corednsAddonVersion   = cfg.get("corednsAddonVersion") ?? "v1.12.1-eksbuild.2";
+
+const eksGeneralNgConfig = {
+    enabled     : cfg.getBoolean("eksGeneralManagedNg") ?? true,
+    name        : cfg.get("eksGeneralManagedNgName") ?? "general",
+    diskSize    : cfg.getNumber("eksGeneralManagedNgDiskSize") ?? 50,
+    amiType     : cfg.get("eksGeneralManagedNgAmiType") ?? "AL2_x86_64",
+    capacityType: cfg.get("eksGeneralManagedNgCapacityType") ?? "ON_DEMAND",
+    taints      : cfg.getObject<aws.types.input.eks.NodeGroupTaint[]>("eksGeneralManagedNgTaints") ?? [],
+    labels      : cfg.getObject<Record<string, string>>("eksGeneralManagedNgLabels") ?? {},
+    instanceType: cfg.get("eksGeneralManagedNgInstanceType") ?? "t3.medium",
+    desiredSize : cfg.getNumber("eksGeneralManagedNgDesiredSize") ?? 1,
+    minSize     : cfg.getNumber("eksGeneralManagedNgMinSize") ?? 1,
+    maxSize     : cfg.getNumber("eksGeneralManagedNgMaxSize") ?? 5,
+} as const;
 
 /**
  * ----------------------------------------------------------------------------------------
@@ -81,6 +94,37 @@ const kmsAlias = new aws.kms.Alias("eks-secrets-kms-alias", {
     targetKeyId: kmsKey.id,
 }, { provider: customProvider });
 
+/* -------------------------------------------------------------------------
+ * EKS Node group IAM role
+ * -----------------------------------------------------------------------*/
+const nodeRole = new aws.iam.Role("node-role", {assumeRolePolicy: JSON.stringify({
+    Version: "2012-10-17",
+    Statement: [{
+        Action: "sts:AssumeRole",
+        Effect: "Allow",
+        Sid: "",
+        Principal: {
+            Service: "ec2.amazonaws.com",
+        },
+    }],
+})});
+const workerNodePolicy = new aws.iam.RolePolicyAttachment("worker-node-policy", {
+    role: nodeRole.name,
+    policyArn: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+});
+const cniPolicy = new aws.iam.RolePolicyAttachment("cni-policy", {
+    role: nodeRole.name,
+    policyArn: "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+});
+const registryPolicy = new aws.iam.RolePolicyAttachment("registry-policy", {
+    role: nodeRole.name,
+    policyArn: "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+});
+const ssmPolicy = new aws.iam.RolePolicyAttachment("ssm-policy", {
+    role: nodeRole.name,
+    policyArn: "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+});
+
 /**
  * ----------------------------------------------------------------------------------------
  * EKS Cluster
@@ -100,14 +144,54 @@ const eksCluster = new eks.Cluster("core-eks-cluster", {
     encryptionConfigKeyArn: kmsKey.arn, // KMS key for encrypting secrets
 
     skipDefaultNodeGroup: true,             // we’ll add our own node groups
+    instanceRoles: [nodeRole],              // Role for worker nodes
+
     kubeProxyAddonOptions: {
-        version: "v1.33.0-eksbuild.2",
+        version: kubeproxyAddonVersion,
     },
     vpcCniOptions: {
-        addonVersion: "v1.19.5-eksbuild.3",
+        addonVersion: vpcCniAddonVersion,
     },
     createOidcProvider: true,
     enabledClusterLogTypes: []
 }, { provider: customProvider });
 
-export const kubeconfig = eksCluster.kubeconfig;
+/* -------------------------------------------------------------------------
+ * Custom general Managed EKS Node group
+ * -----------------------------------------------------------------------*/
+let generalNg: eks.ManagedNodeGroup | undefined;
+if (eksGeneralNgConfig.enabled) {
+    generalNg = new eks.ManagedNodeGroup("general-ng", {
+        cluster: eksCluster,
+        nodeGroupName: eksGeneralNgConfig.name,
+        scalingConfig: {
+            desiredSize: eksGeneralNgConfig.desiredSize,
+            minSize: eksGeneralNgConfig.minSize,
+            maxSize: eksGeneralNgConfig.maxSize,
+        },
+        ignoreScalingChanges: true,
+        amiType: eksGeneralNgConfig.amiType,
+        capacityType: eksGeneralNgConfig.capacityType,
+        diskSize: eksGeneralNgConfig.diskSize,
+        enableIMDSv2: true,
+        instanceTypes: [eksGeneralNgConfig.instanceType],
+        subnetIds: vpc.privateSubnetIds,
+        nodeRoleArn: nodeRole.arn,
+        taints: eksGeneralNgConfig.taints,
+        labels: eksGeneralNgConfig.labels,
+    });
+}
+
+/* -------------------------------------------------------------------------
+ * CoreDNS managed addon — create *after* we have compute
+ * -----------------------------------------------------------------------*/
+const coreDnsAddon = new aws.eks.Addon("coredns-addon", {
+    addonName   : "coredns",
+    addonVersion: corednsAddonVersion,
+    clusterName : eksCluster.core.cluster.name,
+    resolveConflictsOnCreate: "OVERWRITE",
+    resolveConflictsOnUpdate: "OVERWRITE",
+}, {
+    provider : customProvider,
+    dependsOn: generalNg ? [generalNg] : [],
+});
