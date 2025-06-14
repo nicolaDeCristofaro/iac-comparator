@@ -6,7 +6,7 @@ Thank you for considering a contribution to this project! This is a personal and
 
 You can contribute in many ways:
 
-- **Code**: Add features, fix bugs, improve documentation, or implement IaC stacks in different tools.
+- **Code**: Add features, fix bugs, improve documentation.
 - **Testing**: Help identify bugs or performance issues across different implementations.
 - **Docs & Content**: Improve or clarify documentation, add examples, or share learning resources.
 - **Discussions**: Use GitHub Discussions to share ideas, feedback, or ask questions.
