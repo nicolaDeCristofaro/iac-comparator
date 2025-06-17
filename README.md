@@ -13,7 +13,7 @@ Building the *same* cloud stack with several IaC tools is the fastest way to und
 * state management  
 * ecosystem maturity (providers, modules, multi-environments)  
 * testing and CI/CD  
-* operational concerns—speed, cost, reviewability
+* operational concerns like speed, cost, reviewability
 
 `iac-comparator` gathers these learnings in one codebase.
 
@@ -21,7 +21,7 @@ Building the *same* cloud stack with several IaC tools is the fastest way to und
 1. [Reference Architecture](#1-refernce-architecture)
 2. [Getting Started](#2-getting-started)
 3. [Tooling Status](#3-tooling-status)
-4. [Feature Comparison](#4-feature-comparison)
+4. [Feature Comparison](#4-comparison)
 5. [How to Contribute](#5-how-to-contribute)
 
 ## 1. Reference Architecture 
@@ -58,21 +58,47 @@ Section Intro
 
 | Tool           | Language    | Status         | Notes                                          |
 |----------------|-------------|----------------|------------------------------------------------|
-| Terraform      | HCL         | ⏳ In Progress | Lorem Ipsum                                    | 
+| Terraform with official modules      | HCL         | ⏳ In Progress | Lorem Ipsum                                    | 
+| Terraform with custom modules         | TypeScript  | ⏳ In Progress | Lorem Ipsum                                    |
+| OpenTofu         | HCL  | ⏳ In Progress | Lorem Ipsum                                    |
 | Pulumi         | TypeScript  | ⏳ In Progress | Lorem Ipsum                                    |
 | Pulumi         | Go          | ⏳ Planned     | Lorem Ipsum                                    |
 | CloudFormation | YAML        | ⏳ Planned     | Lorem Ipsum                                    |
 | AWS CDK        | TypeScript  | ⏳ Planned     | Lorem Ipsum                                    |
 
 
-## 4. Feature Comparison
+## 4. Comparison
 
 TODO
 
-| Feature                  | Terraform  | Pulumi          | CloudFormation   | AWS CDK       |
-|--------------------------|------------|------------------|------------------|---------------|
-| Language Support         | HCL        | TypeScript, Go   | YAML/JSON        | TS/JS/Python  |
+## 4. Feature Comparison
 
+TODO: these are all the factors I want to compare, but I want to deep dive on each of them, so i'll make a subchapter for each factor and then a final summary table like the one below.
+
+Below is a side‑by‑side matrix of critical capabilities across the supported Infrastructure‑as‑Code tools. 
+
+| Capability                     | Terraform                                                           | OpenTofu                                  | Pulumi (TS/Py/Go/.NET)                                      | AWS CloudFormation             | AWS CDK                                |
+| ------------------------------ | ------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- | ------------------------------ | -------------------------------------- |
+| **Authoring language**         | HCL 2 (declarative)                                                 | HCL 2                                     | General‑purpose (TypeScript, Python, Go, C#, YAML beta)     | JSON or YAML                   | General‑purpose (TS, Py, Java, C#, Go) |
+| **State backend options**      | Local file, S3 + DynamoDB, GCS, Azure Blob, Terraform Cloud, Consul | Same back‑ends, OpenTofu Cloud (road‑map) | Local file, S3, Azure, GCS, Pulumi Cloud (default)          | Managed transparently by AWS   | Managed by AWS (via CloudFormation)    |
+| **Plan / Preview diff**        | `terraform plan`                                                    | `tofu plan`                               | `pulumi preview`                                            | Change Sets (`cfn diff`)       | `cdk diff`                             |
+| **Drift detection**            | `terraform plan -refresh-only`                                      | Same                                      | Automatic refresh every run; Pulumi Cloud drift dashboard   | Built‑in console & events      | Via CloudFormation                     |
+| **Testing frameworks**         | Terratest, Kitchen‑Terraform, Checkov, Conftest                     | Same                                      | Native unit (Mocks), integration tests, CrossGuard          | taskcat, CFN Guard, cfn‑nag    | CDK Assertions (Jest/PyTest), CDK‑Nag  |
+| **Policy as Code**             | Sentinel (TFC), OPA/Conftest, Checkov                               | OPA/Conftest                              | CrossGuard (native), OPA plugins                            | CFN Guard                      | CDK‑Nag, CFN Guard                     |
+| **Module / Package ecosystem** | **Terraform Registry** (>14k modules)                               | **OpenTF Registry** (early mirror)        | **Pulumi Registry** (incl. tf‑bridged); tf2pulumi converter | AWS & Partner sample templates | **Construct Hub** (npm, PyPI, etc.)    |
+| **Multi‑cloud support**        | \~1 500 providers                                                   | Same                                      | 120+ providers inc. SaaS                                    | AWS‑only                       | AWS‑centric; multi‑cloud via CDKTF     |
+| **Secrets handling**           | Vault, TFC, KMS, `sensitive` attrs                                  | Same                                      | Per‑stack secrets (KMS/GCP KMS/Azure KV/passphrase)         | KMS‑encrypted Parameters       | KMS, Secrets Manager, SSM              |
+| **Execution model**            | Local CLI; optional remote runners (TFC)                            | Same                                      | CLI per language → engine graph → apply                     | Managed by AWS service         | Synthesises → CloudFormation → deploy  |
+| **Maturity (2025)**            | Launched 2014                                                       | Forked 2023                               | Launched 2017                                               | Launched 2011                  | Launched 2019                          |
+| **License**                    | MPL‑2.0 (core), BSL‑licensed CLI past 1.6                           | Pure MPL‑2.0 / LGPL                       | Apache‑2.0                                                  | Proprietary AWS                | Apache‑2.0                             |
+| **Commercial SaaS**            | Terraform Cloud & Enterprise                                        | OpenTofu Cloud (announced)                | Pulumi Cloud                                                | Service cost baked into AWS    | N/A (uses CloudFormation)              |
+| **Cost estimation**            | Infracost, TFC RunTasks                                             | Same                                      | Pulumi Cost, Infracost                                      | AWS Cost Estimator (limited)   | Same as CFN                            |
+| **IDE plugins / LSP**          | HashiCorp HLS (VS Code, JetBrains)                                  | Same                                      | Native language servers, Pulumi VS Code ext.                | VS Code JSON/YAML schema       | CDK VS Code & JetBrains                |
+| **Typical speed**              | Moderate (refresh cost)                                             | Moderate                                  | Fast preview; apply dominated by API                        | Slow for very large stacks     | Synth fast; deploy inherits CFN speed  |
+
+add also popularity & reviews in the community citing sources
+
+<small>\* todo.</small>
 
 ## 5. How to Contribute
 
