@@ -2,7 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 import * as eks from "@pulumi/eks";
-
+import * as k8s from "@pulumi/kubernetes";
 
 // Define default tags
 const defaultTags = {
@@ -138,7 +138,7 @@ const eksCluster = new eks.Cluster("core-eks-cluster", {
     version: k8sVersion,
 
     // Network exposure for cluster endpoint
-    endpointPrivateAccess: false,
+    endpointPrivateAccess: true,
     endpointPublicAccess : true,
 
     encryptionConfigKeyArn: kmsKey.arn, // KMS key for encrypting secrets
@@ -195,3 +195,119 @@ const coreDnsAddon = new aws.eks.Addon("coredns-addon", {
     provider : customProvider,
     dependsOn: generalNg ? [generalNg] : [],
 });
+
+/**
+ * ----------------------------------------------------------------------------------------
+ * Bastion host to access the EKS cluster privately via AWS Systems Manager (SSM)
+ * ----------------------------------------------------------------------------------------
+ *
+ * Design notes
+ * --------------------------------------
+ * - Instance lives in a private subnet > no public IP, no inbound ports
+ * - All administration happens through SSM Session Manager > audited and logged
+ * - Security group has egress‑only rule (HTTPS → 0.0.0.0/0) so the instance
+ *   can reach the SSM, ECR and EKS endpoints
+ */
+
+/* -------------------------------------------------------------------------
+ * Security Group — egress‑only, no ingress required for SSM
+ * -----------------------------------------------------------------------*/
+const bastionSg = new aws.ec2.SecurityGroup("eks-bastion-sg", {
+    vpcId      : vpc.vpcId,
+    description: "Security group for the Bastion host (SSM only, no inbound)",
+    egress     : [{
+        protocol  : "-1",
+        fromPort  : 0,
+        toPort    : 0,
+        cidrBlocks: ["0.0.0.0/0"],
+    }],
+    tags: {
+        ...defaultTags,
+        Name: "eks-bastion-sg",
+    },
+}, { provider: customProvider });
+
+/* -------------------------------------------------------------------------
+ * IAM Role & Instance Profile for the Bastion host
+ * -----------------------------------------------------------------------*/
+const bastionRole = new aws.iam.Role("bastion-role", {
+    assumeRolePolicy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [{
+            Effect: "Allow",
+            Principal: { Service: "ec2.amazonaws.com" },
+            Action: "sts:AssumeRole",
+        }],
+    }),
+}, { provider: customProvider });
+
+/* ‑‑‑‑ Attach policies:
+ * 1. AmazonSSMManagedInstanceCore  ➜ SSM agent registration & Session Manager
+ * 2. AmazonEKSClusterPolicy        ➜ kubectl / eksctl from the Bastion
+ */
+new aws.iam.RolePolicyAttachment("bastion-ssm-policy", {
+    role      : bastionRole.name,
+    policyArn : "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+}, { provider: customProvider });
+
+new aws.iam.RolePolicyAttachment("bastion-eks-policy", {
+    role      : bastionRole.name,
+    policyArn : "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+}, { provider: customProvider });
+
+const bastionInstanceProfile = new aws.iam.InstanceProfile("eks-bastion-instance-profile", {
+    role: bastionRole.name,
+}, { provider: customProvider });
+
+/* -------------------------------------------------------------------------
+ * Find the latest Amazon Linux 2 AMI
+ * -----------------------------------------------------------------------*/
+const amazonLinuxAmi = pulumi.output(aws.ec2.getAmi({
+    owners     : ["amazon"],
+    mostRecent : true,
+    filters    : [
+        { name: "name", values: ["amzn2-ami-hvm-*"] },
+    ],
+}, { provider: customProvider }));
+
+/* -------------------------------------------------------------------------
+ * EC2 Instance — the SSM–managed Bastion host
+ * -----------------------------------------------------------------------*/
+const bastionHost = new aws.ec2.Instance("eks-bastion-host", {
+    ami                  : amazonLinuxAmi.id,
+    instanceType         : "t3.micro",
+    subnetId             : vpc.privateSubnetIds.apply(ids => ids[0]), // first private subnet
+    vpcSecurityGroupIds  : [bastionSg.id],
+    iamInstanceProfile   : bastionInstanceProfile.name,
+    associatePublicIpAddress: false,
+    monitoring           : true,   // detailed monitoring
+    tags: {
+        ...defaultTags,
+        Name: "eks-bastion",
+    },
+}, { provider: customProvider });
+
+/* -------------------------------------------------------------------------
+ * Stack outputs — handy values for operators
+ * -----------------------------------------------------------------------*/
+export const bastionInstanceId   = bastionHost.id;
+export const bastionPrivateIp    = bastionHost.privateIp;
+export const bastionSecurityGroup= bastionSg.id;
+
+/* -------------------------------------------------------------------------
+ * Build kubeconfig that injects AWS_PROFILE into the exec auth command
+ * -----------------------------------------------------------------------*/
+const kubeconfigWithProfile = eksCluster.kubeconfig.apply(cfg => {
+    const kc: any = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
+
+    if (kc?.users?.[0]?.user?.exec) {
+        kc.users[0].user.exec.env = kc.users[0].user.exec.env ?? [];
+        kc.users[0].user.exec.env.push({
+            name : "AWS_PROFILE",
+            value: aws.config.profile || "default",
+        });
+    }
+    return JSON.stringify(kc);
+});
+
+const k8sProvider = new k8s.Provider("eks-k8s-provider", { kubeconfig: kubeconfigWithProfile });
