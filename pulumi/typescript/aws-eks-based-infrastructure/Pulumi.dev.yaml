@@ -5,6 +5,12 @@ config:
   vpcCidr: 10.0.0.0/16
   azs: 3
 
+  # Bastion host
+  eksBastionEnabled: true
+  eksBastionInstanceType: "t3.micro"
+  eksBastionDiskSize: 50
+  eksBastionAmiType: "AL2023_x86_64"
+
   # EKS cluster
   k8sVersion: "1.33"
   kubeproxyAddonVersion: "v1.33.0-eksbuild.2"
