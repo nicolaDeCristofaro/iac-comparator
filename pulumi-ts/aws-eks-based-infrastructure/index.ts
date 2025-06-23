@@ -293,21 +293,3 @@ const bastionHost = new aws.ec2.Instance("eks-bastion-host", {
 export const bastionInstanceId   = bastionHost.id;
 export const bastionPrivateIp    = bastionHost.privateIp;
 export const bastionSecurityGroup= bastionSg.id;
-
-/* -------------------------------------------------------------------------
- * Build kubeconfig that injects AWS_PROFILE into the exec auth command
- * -----------------------------------------------------------------------*/
-const kubeconfigWithProfile = eksCluster.kubeconfig.apply(cfg => {
-    const kc: any = typeof cfg === "string" ? JSON.parse(cfg) : cfg;
-
-    if (kc?.users?.[0]?.user?.exec) {
-        kc.users[0].user.exec.env = kc.users[0].user.exec.env ?? [];
-        kc.users[0].user.exec.env.push({
-            name : "AWS_PROFILE",
-            value: aws.config.profile || "default",
-        });
-    }
-    return JSON.stringify(kc);
-});
-
-const k8sProvider = new k8s.Provider("eks-k8s-provider", { kubeconfig: kubeconfigWithProfile });
