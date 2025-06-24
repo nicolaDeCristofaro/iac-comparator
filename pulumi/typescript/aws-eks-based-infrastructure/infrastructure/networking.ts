@@ -36,3 +36,10 @@ const networking = new awsx.ec2.Vpc("core-vpc", {
 }, { provider: customProvider });
 
 export { networking };
+
+/* ------------------------------------------------------------------
+ * Curated fields that other stacks / CI jobs actually consume
+ * ----------------------------------------------------------------*/
+export const vpcId            = networking.vpcId;
+export const privateSubnetIds = networking.privateSubnetIds;
+export const publicSubnetIds  = networking.publicSubnetIds;
