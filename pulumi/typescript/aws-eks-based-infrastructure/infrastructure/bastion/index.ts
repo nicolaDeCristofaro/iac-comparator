@@ -1,8 +1,10 @@
+import * as fs from "fs";
+import * as path from "path";
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { networking } from "../networking";
 import { defaultTags, customProvider } from "../../infrastructure/provider";
-import { eksBastionConfig } from "../../config";
+import { eksBastionConfig, k8sVersion } from "../../config";
 
 /**
  * ----------------------------------------------------------------------------------------
@@ -16,6 +18,21 @@ import { eksBastionConfig } from "../../config";
  * - Security group has egress‑only rule (HTTPS → 0.0.0.0/0) so the instance
  *   can reach the SSM, ECR and EKS endpoints
  */
+
+/* -------------------------------------------------------------------------
+ * Inject dynamic values into bootstrap script
+ * -----------------------------------------------------------------------*/
+const rawScript = fs.readFileSync(
+        path.join(__dirname, "bootstrap.sh"),
+        "utf8",
+    );
+
+const userData = pulumi
+    .all([])
+    .apply(([k8sVersion]) =>
+        rawScript
+        .replace(/__K8S_MINOR_VERSION__/g, k8sVersion),
+    );
 
 /* -------------------------------------------------------------------------
  * Security Group — egress‑only, no ingress required for SSM
@@ -58,6 +75,20 @@ new aws.iam.RolePolicyAttachment("bastion-ssm-policy", {
     policyArn : "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
 }, { provider: customProvider });
 
+new aws.iam.RolePolicy("bastion-eks-s3-access", {
+    role: bastionRole.name,
+    policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+        {
+            Effect: "Allow",
+            Action: "s3:ListBucket",
+            Resource: "arn:aws:s3:::amazon-eks",
+        },
+        ],
+    }),
+}, { provider: customProvider });
+
 const bastionInstanceProfile = new aws.iam.InstanceProfile("eks-bastion-instance-profile", {
     role: bastionRole.name,
 }, { provider: customProvider });
@@ -97,6 +128,7 @@ const bastionHost = new aws.ec2.Instance("eks-bastion-host", {
         ...defaultTags,
         Name: "eks-bastion",
     },
+    userData,
 }, { provider: customProvider });
 
 /* -------------------------------------------------------------------------
@@ -105,3 +137,4 @@ const bastionHost = new aws.ec2.Instance("eks-bastion-host", {
 export const bastionInstanceId      = bastionHost.id;
 export const bastionSecurityGroupId = bastionSg.id;
 export const bastionRoleName        = bastionRole.name
+export const bastionRoleArn         = bastionRole.arn;

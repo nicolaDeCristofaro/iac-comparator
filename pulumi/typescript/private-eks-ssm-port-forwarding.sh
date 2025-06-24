@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-CLUSTER=core-eks-cluster-eksCluster-a788d49
-BASTION=i-09788544b29133ed3
+CLUSTER=core-eks-cluster-eksCluster-d1efcf0 # take dynamically
+BASTION=i-053f02b9102f3726a # take dynamically
 PROFILE=iac-comparator-pulumi-dev
 EP=$(aws eks describe-cluster --name "$CLUSTER" --query 'cluster.endpoint' --profile "$PROFILE" --output text)
 HOST=${EP#https://}
