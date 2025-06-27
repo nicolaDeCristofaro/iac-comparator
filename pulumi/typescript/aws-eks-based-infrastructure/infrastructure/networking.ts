@@ -1,6 +1,6 @@
 import * as awsx from "@pulumi/awsx";
 import { customProvider } from "../infrastructure/provider";
-import { vpcCidr, azCount } from "../config";
+import { vpcCidr, azCount, natStrategy } from "../config";
 
 /**
  * ----------------------------------------------------------------------------------------
@@ -18,7 +18,10 @@ const networking = new awsx.ec2.Vpc("core-vpc", {
     /* ─── Topology ─────────────────────────────────────────────────────────── */
     numberOfAvailabilityZones: azCount, // How many AZs to span => N public + N private subnets
     // NAT strategy: One gateway per AZ (best HA).  “Single” is cheaper; “None” == isolated.
-    natGateways: { strategy: "OnePerAz" },
+    natGateways: {
+        // Cast to the literal union expected by awsx
+        strategy: natStrategy as awsx.ec2.NatGatewayStrategy,
+    },
     // Subnet layout: one /24 public + one /24 private per AZ
     subnetStrategy: "Auto",
     subnetSpecs: [

@@ -8,9 +8,7 @@ import { eksGeneralNgConfig } from "../../config";
 /* -------------------------------------------------------------------------
  * Custom general Managed EKS Node group
  * -----------------------------------------------------------------------*/
-let generalNg: eks.ManagedNodeGroup | undefined;
-if (eksGeneralNgConfig.enabled) {
-    generalNg = new eks.ManagedNodeGroup("general-ng", {
+const generalNg = new eks.ManagedNodeGroup("general-ng", {
         cluster: eksCluster,
         nodeGroupName: eksGeneralNgConfig.name,
         scalingConfig: {
@@ -28,7 +26,6 @@ if (eksGeneralNgConfig.enabled) {
         nodeRoleArn: nodeRole.arn,
         taints: eksGeneralNgConfig.taints,
         labels: eksGeneralNgConfig.labels,
-    }, { provider: customProvider });
-}
+}, { provider: customProvider });
 
 export { generalNg };

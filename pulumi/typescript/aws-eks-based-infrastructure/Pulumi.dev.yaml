@@ -4,12 +4,7 @@ config:
   # networking
   vpcCidr: 10.0.0.0/16
   azs: 3
-
-  # Bastion host
-  eksBastionEnabled: true
-  eksBastionInstanceType: "t3.micro"
-  eksBastionDiskSize: 50
-  eksBastionAmiType: "AL2023_x86_64"
+  natStrategy: "Single" # NAT strategy: "OnePerAz" > One gateway per AZ (best HA); “Single” is cheaper; “None” == isolated.
 
   # EKS cluster
   k8sVersion: "1.33"
@@ -17,7 +12,6 @@ config:
   vpcCniAddonVersion: "v1.19.5-eksbuild.3"
 
   # EKS managed node group
-  eksGeneralManagedNg: true
   eksGeneralManagedNgName: "general"
   eksGeneralManagedNgDiskSize: 50
   eksGeneralManagedNgAmiType: "AL2023_x86_64_STANDARD"
