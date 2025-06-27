@@ -14,6 +14,7 @@ export const outputs = {
     vpcId: networking.networking.vpcId,
     privateSubnetIds: networking.networking.privateSubnetIds,
     publicSubnetIds: networking.networking.publicSubnetIds,
+    natGateways: networking.networking.natGateways.apply(natGateways => natGateways.map(ngw => ngw.id)),
   },
   kms: {
     kmsKeyId: kms.kmsKey.id,
