@@ -66,10 +66,7 @@ const bastionRole = new aws.iam.Role("bastion-role", {
     }),
 }, { provider: customProvider });
 
-/* ‑‑‑‑ Attach policies:
- * 1. AmazonSSMManagedInstanceCore  ➜ SSM agent registration & Session Manager
- * 2. AmazonEKSClusterPolicy        ➜ kubectl / eksctl from the Bastion
- */
+// ‑‑‑‑ Attach policies
 new aws.iam.RolePolicyAttachment("bastion-ssm-policy", {
     role      : bastionRole.name,
     policyArn : "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",

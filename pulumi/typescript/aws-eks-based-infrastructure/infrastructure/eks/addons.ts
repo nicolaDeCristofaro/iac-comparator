@@ -17,3 +17,5 @@ const coreDnsAddon = new aws.eks.Addon("coredns-addon", {
     provider : customProvider,
     dependsOn: generalNg ? [generalNg] : undefined,
 });
+
+export { coreDnsAddon };

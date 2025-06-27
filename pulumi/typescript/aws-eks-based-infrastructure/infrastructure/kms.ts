@@ -16,4 +16,7 @@ const kmsAlias = new aws.kms.Alias("eks-secrets-kms-alias", {
     targetKeyId: kmsKey.id,
 }, { provider: customProvider });
 
-export { kmsKey };
+/* ------------------------------------------------------------------
+ * Networking outputs
+ * ----------------------------------------------------------------*/
+export { kmsKey, kmsAlias };

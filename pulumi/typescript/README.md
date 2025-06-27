@@ -46,3 +46,5 @@ TODO -> about Pulumi Cloud and how Pulumi handles state
 
 
 
+how outputs are handled
+- exporting whole object to be easily usable by others, but in the stack outputs there is no need to print all the fields
