@@ -7,6 +7,23 @@ import { kmsKey } from "../../infrastructure/kms";
 import { nodeRole } from "./node-role";
 import { bastionSecurityGroupId, bastionRoleName } from "../../infrastructure/bastion";
 import { k8sVersion, kubeproxyAddonVersion, vpcCniAddonVersion, eksBastionConfig } from "../../config";
+import * as child_process from "child_process";
+
+// -----------------------------------------------------------------------------
+// Resolve the developer’s current public IP at deploy‑time
+// -----------------------------------------------------------------------------
+/**
+ * ----------------------------------------------------------------------------------------
+ * Resolve the developer’s current public IP at deploy‑time
+ * in order to allow access to the EKS cluster public API endpoint only from that IP.
+ * This is useful to be secure also in the development process.
+ * ----------------------------------------------------------------------------------------
+ */
+const myPublicIp = child_process
+  .execSync("curl -s https://checkip.amazonaws.com")
+  .toString()
+  .trim();
+const myPublicCidr = `${myPublicIp}/32`;
 
 /**
  * ----------------------------------------------------------------------------------------
@@ -23,6 +40,7 @@ const eksCluster = new eks.Cluster("core-eks-cluster", {
     // Network exposure for cluster endpoint
     endpointPrivateAccess: true,
     endpointPublicAccess : true,
+    publicAccessCidrs: [myPublicCidr],
 
     encryptionConfigKeyArn: kmsKey.arn, // KMS key for encrypting secrets
 
